@@ -35,6 +35,14 @@
   footer { padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 6px; background: var(--panel); border-top: 1px solid var(--line); }
   footer h1 { margin: 0; font: 700 22px/1.2 var(--display); }
   footer p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 40em; }
+  /* ARでの大きさ */
+  .size-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0; }
+  .size-row .label { font: 700 13px var(--body); color: var(--fg); }
+  .sizes { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--bg); }
+  .sizes button { font: 500 14px var(--body); padding: 8px 14px; border: 0; background: transparent; color: var(--fg); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .sizes button + button { border-left: 1px solid var(--line); }
+  .sizes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .sizes button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 </style>
 </head>
 <body>
@@ -64,8 +72,15 @@
   </model-viewer>
   <footer>
     <h1>ふくもち フィギュア</h1>
-    <p>指で回して、広げて拡大できます。高さ 10 cm のフルカラー3Dプリント用データです。</p>
-    <p id="ar-hint">「ARで部屋に置く」は、iPhone は Safari、Android(ARCore 対応機)は Chrome で開くと使えます。実物と同じ大きさで床に置けます。</p>
+    <p>指で回して、広げて拡大できます。フルカラー3Dプリント用のデータです。</p>
+    <div class="size-row">
+      <span class="label" id="size-label">ARでの大きさ</span>
+      <div class="sizes" role="group" aria-labelledby="size-label">
+        <button type="button" data-size="10" aria-pressed="false">10cm</button><button type="button" data-size="15" aria-pressed="false">15cm</button><button type="button" data-size="20" aria-pressed="false">20cm</button><button type="button" data-size="free" aria-pressed="false">自由に</button>
+      </div>
+    </div>
+    <p id="size-note"></p>
+    <p id="ar-hint">「ARで部屋に置く」は、iPhone は Safari、Android(ARCore 対応機)は Chrome で開くと使えます。</p>
   </footer>
 </div>
 
@@ -106,6 +121,28 @@
   });
   // この端末で一度ひらいたことがあれば、合言葉を入れ直さなくてよいようにする
   try { const saved = localStorage.getItem("figure-pw"); if (saved) { pw.value = saved; unlock(saved).catch(() => { pw.value = ""; }); } } catch {}
+
+  // ARでの大きさ。3Dデータは BASE cm で作ってあるので、選んだ高さとの比で拡大縮小する
+  const BASE = 10;
+  const note = document.getElementById("size-note");
+  function setSize(choice) {
+    for (const b of document.querySelectorAll("[data-size]")) b.setAttribute("aria-pressed", String(b.dataset.size === String(choice)));
+    if (choice === "free") {
+      mv.scale = "1 1 1";
+      mv.arScale = "auto";
+      note.textContent = "ARで置いたあと、2本の指でつまんで好きな大きさにできます(はじめは高さ " + BASE + " cm)。";
+    } else {
+      const k = Number(choice) / BASE;
+      mv.scale = k + " " + k + " " + k;
+      mv.arScale = "fixed";
+      note.textContent = "ARでは高さ " + choice + " cm(足の裏から頭のてっぺんまで)で床に置かれます。";
+    }
+    try { localStorage.setItem("figure-size", String(choice)); } catch {}
+  }
+  for (const b of document.querySelectorAll("[data-size]")) b.addEventListener("click", () => setSize(b.dataset.size));
+  let firstSize = String(BASE);
+  try { const s = localStorage.getItem("figure-size"); if (s && document.querySelector('[data-size="' + s + '"]')) firstSize = s; } catch {}
+  setSize(firstSize);
 
   for (const b of document.querySelectorAll("[data-orbit]")) b.addEventListener("click", () => { mv.autoRotate = false; mv.cameraOrbit = b.dataset.orbit; mv.cameraTarget = "auto auto auto"; });
   mv.addEventListener("load", () => {
