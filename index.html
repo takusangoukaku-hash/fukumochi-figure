@@ -28,21 +28,24 @@
   /* 3D 表示 */
   #stage { display: none; flex: 1; flex-direction: column; min-height: 0; }
   #stage.on { display: flex; }
-  model-viewer { flex: 1 1 auto; width: 100%; min-height: 55vh; background: var(--bg); --poster-color: var(--bg); }
+  model-viewer { flex: 1 1 auto; width: 100%; min-height: 50vh; background: var(--bg); --poster-color: var(--bg); }
   .ar-button { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); font: 700 16px var(--display); padding: 12px 22px; border-radius: 999px; border: 0; background: var(--accent); color: var(--accent-fg); box-shadow: 0 6px 18px rgba(0,0,0,.18); cursor: pointer; }
   .views { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 32px); }
   .views button { font: 500 13px var(--body); padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+  #loading { position: absolute; inset: 0; display: none; place-items: center; color: var(--muted); font-size: 14px; pointer-events: none; }
+  #loading.on { display: grid; }
   footer { padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 6px; background: var(--panel); border-top: 1px solid var(--line); }
   footer h1 { margin: 0; font: 700 22px/1.2 var(--display); }
   footer p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 40em; }
-  /* ARでの大きさ */
-  .size-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0; }
-  .size-row .label { font: 700 13px var(--body); color: var(--fg); }
-  .sizes { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--bg); }
-  .sizes button { font: 500 14px var(--body); padding: 8px 14px; border: 0; background: transparent; color: var(--fg); cursor: pointer; font-variant-numeric: tabular-nums; }
-  .sizes button + button { border-left: 1px solid var(--line); }
-  .sizes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
-  .sizes button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* 切り替えボタン(ポーズ・ARでの大きさ) */
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0; }
+  .row .label { font: 700 13px var(--body); color: var(--fg); min-width: 7em; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--bg); }
+  .seg button { font: 500 14px var(--body); padding: 8px 14px; border: 0; background: transparent; color: var(--fg); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .seg button[disabled] { opacity: .5; }
 </style>
 </head>
 <body>
@@ -57,7 +60,7 @@
   </form>
 </div>
 <div id="stage">
-  <model-viewer id="mv" alt="ふくもちの3Dフィギュア" camera-controls auto-rotate auto-rotate-delay="1500" rotation-per-second="18deg"
+  <model-viewer id="mv" loading="eager" alt="ふくもちの3Dフィギュア" camera-controls auto-rotate auto-rotate-delay="1500" rotation-per-second="18deg"
     ar ar-modes="webxr quick-look" ar-scale="fixed" ar-placement="floor"
     shadow-intensity="0.7" shadow-softness="0.8" exposure="1.0" environment-image="neutral"
     camera-orbit="35deg 78deg 105%" min-camera-orbit="auto auto 50%" max-camera-orbit="auto auto 300%" field-of-view="28deg" interaction-prompt="none">
@@ -68,16 +71,19 @@
       <button type="button" data-orbit="-90deg 80deg 105%">右</button>
       <button type="button" data-orbit="35deg 20deg 105%">上から</button>
     </div>
+    <div id="loading">読み込んでいます…</div>
     <button type="button" slot="ar-button" class="ar-button">ARで部屋に置く</button>
   </model-viewer>
   <footer>
     <h1>ふくもち フィギュア</h1>
     <p>指で回して、広げて拡大できます。フルカラー3Dプリント用のデータです。</p>
-    <div class="size-row">
+    <div class="row" id="pose-row">
+      <span class="label" id="pose-label">ポーズ</span>
+      <div class="seg" id="poses" role="group" aria-labelledby="pose-label"></div>
+    </div>
+    <div class="row">
       <span class="label" id="size-label">ARでの大きさ</span>
-      <div class="sizes" role="group" aria-labelledby="size-label">
-        <button type="button" data-size="10" aria-pressed="false">10cm</button><button type="button" data-size="15" aria-pressed="false">15cm</button><button type="button" data-size="20" aria-pressed="false">20cm</button><button type="button" data-size="free" aria-pressed="false">自由に</button>
-      </div>
+      <div class="seg" id="sizes" role="group" aria-labelledby="size-label"></div>
     </div>
     <p id="size-note"></p>
     <p id="ar-hint">「ARで部屋に置く」は、iPhone は Safari、Android(ARCore 対応機)は Chrome で開くと使えます。</p>
@@ -87,70 +93,124 @@
 <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 <script>
 (() => {
-  const form = document.getElementById("form"), pw = document.getElementById("pw"), go = document.getElementById("go"), err = document.getElementById("err");
-  const mv = document.getElementById("mv");
+  const MODELS = [{"id":"stand","label":"立ち姿","base":10,"sizes":[10,15,20],"file":"data-stand.bin","ratio":1.2582},{"id":"paws","label":"前足に顔をのせて","base":5,"sizes":[5,7.5,10],"file":"data-paws.bin","ratio":2.6015}];
+  const SALT = Uint8Array.from(atob("lJWSWNK4yjDGGRPJgRVIJA=="), (c) => c.charCodeAt(0));
   const ITER = 300000;
-  let encrypted;   // data.bin の中身(読み込みは1回だけ)
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), pw = $("pw"), go = $("go"), err = $("err"), mv = $("mv"), note = $("size-note"), loading = $("loading");
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 
-  async function unlock(passphrase) {
-    encrypted ??= new Uint8Array(await (await fetch("data.bin")).arrayBuffer());
-    const salt = encrypted.slice(0, 16), iv = encrypted.slice(16, 28), body = encrypted.slice(28);
+  let key = null;          // 合言葉から作った鍵
+  const srcCache = {};     // モデルごとの表示用アドレス(一度ほどいたら使い回す)
+  let current = null;      // 表示中のモデル
+
+  async function deriveKey(passphrase) {
     const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(passphrase.normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
-    const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: ITER, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-    const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, body));   // 合言葉が違うとここで失敗する
-    // ほどく
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt: SALT, iterations: ITER, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  }
+
+  // 暗号化された1モデルを取ってきて、ほどいて、model-viewer に渡せるアドレスにする
+  async function openModel(model, k) {
+    if (srcCache[model.id]) return srcCache[model.id];
+    const enc = new Uint8Array(await (await fetch(model.file)).arrayBuffer());
+    const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: enc.slice(0, 12) }, k, enc.slice(12)));   // 合言葉が違うとここで失敗する
     const tocLen = new DataView(plain.buffer).getUint32(0, true);
     const toc = JSON.parse(new TextDecoder().decode(plain.slice(4, 4 + tocLen)));
     const files = {}; let at = 4 + tocLen;
     for (const { name, size } of toc) { files[name] = plain.slice(at, at + size); at += size; }
-    // glTF の中の参照先を、復号したデータの一時アドレスに差し替える
     const urls = { "model.wasm": URL.createObjectURL(new Blob([files["model.wasm"]])), "texture.jpg": URL.createObjectURL(new Blob([files["texture.jpg"]], { type: "image/jpeg" })) };
     const gltf = JSON.parse(new TextDecoder().decode(files["model.json"]));
     for (const b of gltf.buffers ?? []) if (urls[b.uri]) b.uri = urls[b.uri];
     for (const im of gltf.images ?? []) if (urls[im.uri]) im.uri = urls[im.uri];
-    mv.src = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "model/gltf+json" }));
-    document.getElementById("gate").style.display = "none";
-    document.getElementById("stage").classList.add("on");
+    return (srcCache[model.id] = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "model/gltf+json" })));
   }
 
+  // ---- ポーズ ----
+  const poses = $("poses");
+  if (MODELS.length < 2) $("pose-row").hidden = true;
+  for (const m of MODELS) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.model = m.id; b.textContent = m.label; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => showModel(m.id).catch(showLoadError));
+    poses.appendChild(b);
+  }
+  async function showModel(id) {
+    // model-viewer の部品が読み込まれる前に src などを入れると無視されるので、準備ができるまで待つ
+    await customElements.whenDefined("model-viewer");
+    const m = MODELS.find((x) => x.id === id) ?? MODELS[0];
+    for (const b of poses.querySelectorAll("button")) { b.setAttribute("aria-pressed", String(b.dataset.model === m.id)); b.disabled = true; }
+    loading.classList.add("on");
+    try {
+      const src = await openModel(m, key);
+      current = m;
+      renderSizes();
+      mv.src = src;
+      mv.cameraOrbit = "35deg 78deg 105%"; mv.autoRotate = true;
+      store.set("figure-model", m.id);
+    } finally {
+      for (const b of poses.querySelectorAll("button")) b.disabled = false;
+      loading.classList.remove("on");
+    }
+  }
+  function showLoadError() { note.textContent = "読み込めませんでした。通信状態を確認して、もう一度お試しください。"; }
+
+  // ---- ARでの大きさ(3Dデータは base cm で作ってあるので、選んだ高さとの比で拡大縮小する) ----
+  const sizes = $("sizes");
+  function renderSizes() {
+    sizes.textContent = "";
+    for (const h of [...current.sizes, "free"]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.size = String(h); b.setAttribute("aria-pressed", "false");
+      b.textContent = h === "free" ? "自由に" : "高さ" + h + "cm";
+      b.addEventListener("click", () => setSize(String(h)));
+      sizes.appendChild(b);
+    }
+    const saved = store.get("figure-size-" + current.id);
+    setSize(saved && sizes.querySelector('[data-size="' + saved + '"]') ? saved : String(current.sizes[0] ?? current.base));
+  }
+  function setSize(choice) {
+    for (const b of sizes.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.size === choice));
+    if (choice === "free") {
+      mv.scale = "1 1 1";
+      mv.arScale = "auto";
+      note.textContent = "ARで置いたあと、2本の指でつまんで好きな大きさにできます(はじめは高さ " + current.base + " cm)。";
+    } else {
+      const k = Number(choice) / current.base;
+      mv.scale = k + " " + k + " " + k;
+      mv.arScale = "fixed";
+      note.textContent = "ARでは高さ " + choice + " cm(床からいちばん高い所まで)、前後の長さ約 " + (Number(choice) * current.ratio).toFixed(1) + " cm で床に置かれます。";
+    }
+    store.set("figure-size-" + current.id, choice);
+  }
+  mv.addEventListener("load", () => {
+    if (!mv.canActivateAR) {
+      const btn = mv.querySelector(".ar-button"); if (btn) btn.hidden = true;
+      $("ar-hint").textContent = "この端末・ブラウザでは AR 表示は使えません。iPhone は Safari、Android(ARCore 対応機)は Chrome で開くと「ARで部屋に置く」が出ます。";
+    }
+  });
+
+  // ---- 合言葉 ----
+  async function unlock(passphrase) {
+    const k = await deriveKey(passphrase);
+    const first = MODELS.find((m) => m.id === store.get("figure-model")) ?? MODELS[0];
+    await openModel(first, k);   // 合言葉の確認を兼ねる
+    key = k;
+    $("gate").style.display = "none";
+    $("stage").classList.add("on");
+    await showModel(first.id);
+  }
   form.addEventListener("submit", async (e) => {
     e.preventDefault(); err.textContent = ""; go.disabled = true; go.textContent = "ひらいています…";
-    try { await unlock(pw.value.trim()); try { localStorage.setItem("figure-pw", pw.value.trim()); } catch {} }
+    const value = pw.value.trim();
+    try { await unlock(value); store.set("figure-pw", value); }
     catch (ex) { err.textContent = ex.name === "OperationError" ? "合言葉が違うようです。" : "読み込めませんでした。通信状態を確認して、もう一度お試しください。"; }
     finally { go.disabled = false; go.textContent = "ひらく"; }
   });
   // この端末で一度ひらいたことがあれば、合言葉を入れ直さなくてよいようにする
-  try { const saved = localStorage.getItem("figure-pw"); if (saved) { pw.value = saved; unlock(saved).catch(() => { pw.value = ""; }); } } catch {}
-
-  // ARでの大きさ。3Dデータは BASE cm で作ってあるので、選んだ高さとの比で拡大縮小する
-  const BASE = 10;
-  const note = document.getElementById("size-note");
-  function setSize(choice) {
-    for (const b of document.querySelectorAll("[data-size]")) b.setAttribute("aria-pressed", String(b.dataset.size === String(choice)));
-    if (choice === "free") {
-      mv.scale = "1 1 1";
-      mv.arScale = "auto";
-      note.textContent = "ARで置いたあと、2本の指でつまんで好きな大きさにできます(はじめは高さ " + BASE + " cm)。";
-    } else {
-      const k = Number(choice) / BASE;
-      mv.scale = k + " " + k + " " + k;
-      mv.arScale = "fixed";
-      note.textContent = "ARでは高さ " + choice + " cm(足の裏から頭のてっぺんまで)で床に置かれます。";
-    }
-    try { localStorage.setItem("figure-size", String(choice)); } catch {}
-  }
-  for (const b of document.querySelectorAll("[data-size]")) b.addEventListener("click", () => setSize(b.dataset.size));
-  let firstSize = String(BASE);
-  try { const s = localStorage.getItem("figure-size"); if (s && document.querySelector('[data-size="' + s + '"]')) firstSize = s; } catch {}
-  setSize(firstSize);
+  const saved = store.get("figure-pw");
+  if (saved) { pw.value = saved; unlock(saved).catch(() => { pw.value = ""; }); }
 
   for (const b of document.querySelectorAll("[data-orbit]")) b.addEventListener("click", () => { mv.autoRotate = false; mv.cameraOrbit = b.dataset.orbit; mv.cameraTarget = "auto auto auto"; });
-  mv.addEventListener("load", () => {
-    if (!mv.canActivateAR) {
-      const btn = mv.querySelector(".ar-button"); if (btn) btn.hidden = true;
-      document.getElementById("ar-hint").textContent = "この端末・ブラウザでは AR 表示は使えません。iPhone は Safari、Android(ARCore 対応機)は Chrome で開くと「ARで部屋に置く」が出ます。";
-    }
-  });
 })();
 </script>
 </body>
