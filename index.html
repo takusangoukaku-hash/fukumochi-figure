@@ -93,8 +93,8 @@
 <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 <script>
 (() => {
-  const MODELS = [{"id":"stand","label":"立ち姿","base":10,"sizes":[10,15,20],"file":"data-stand.bin","ratio":1.2582},{"id":"paws","label":"前足に顔をのせて","base":5,"sizes":[5,7.5,10],"file":"data-paws.bin","ratio":2.6015}];
-  const SALT = Uint8Array.from(atob("lJWSWNK4yjDGGRPJgRVIJA=="), (c) => c.charCodeAt(0));
+  const MODELS = [{"id":"stand","label":"立ち姿","base":10,"sizes":[10,15,20],"file":"data-stand.bin","ratio":1.2582},{"id":"paws","label":"前足に顔をのせて","base":5,"sizes":[5,7.5,10],"file":"data-paws.bin","ratio":2.6015},{"id":"sleepy","label":"ねむそうに伏せて","base":5,"sizes":[5,7.5,10],"file":"data-sleepy.bin","ratio":2.6074}];
+  const SALT = Uint8Array.from(atob("slwowdjO+LDfRiVUeGMlig=="), (c) => c.charCodeAt(0));
   const ITER = 300000;
   const $ = (id) => document.getElementById(id);
   const form = $("form"), pw = $("pw"), go = $("go"), err = $("err"), mv = $("mv"), note = $("size-note"), loading = $("loading");
